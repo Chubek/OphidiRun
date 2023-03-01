@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/utsname.h>
-#include <seccomp.h>
 #include <err.h>
 #include <string>
 #include <iostream>
@@ -13,6 +12,14 @@
 #include <filesystem>
 #include <memory>
 #include <array>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <string.h>
+#include <regex>
+#include <seccomp.h>
 
 using namespace std;
 
@@ -22,29 +29,29 @@ using namespace std;
 #define FSLASH '/'
 #define ALNUM 25
 #define TMPSZ 10
+#define RE_IPV4 "^(((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\\.|:|$)){4}\\d{2,5})"
+#define RE_IPV6 "^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
+
+#define ERR_EXIT(message)                              \
+                                                       \
+    do                                                 \
+    {                                                  \
+        cout << "\033[1;31mError: \033[0m" << message; \
+        exit(1);                                       \
+    } while (0)
+typedef struct addrinfo *pAddrInfo_t;
+
+const regex c_IPV4_REGEX(RE_IPV4);
+const regex c_IPV6_REGEX(RE_IPV6);
 
 const vector<char> cTO_TRIM = { '\0', ' ', '\r', '\n', ';', '\t' };
 const vector<char> cUPPERCASE = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'M', 'N', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'};
 
+typedef enum NetworkAddressType {
+    AddrTypeIPV4,
+    AddrTypeIPV6,
+} netAddr_t;
 
-size_t randomNum(size_t min, size_t max) {
-    std::random_device dev;
-    std::mt19937 rng(dev());
-    std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max); 
-
-    return dist6(rng);
-}
-
-string randomString(size_t size) {
-    string ret;
-    for (int i = 0; i < size; i++) {
-        size_t new_rand = randomNum(0, ALNUM);
-        char new_char = cUPPERCASE[new_rand];
-        ret.insert(0, 1, new_char);
-    }
-
-    return ret;
-}
 
 static void tefnutSandBoxSeccomp(vector<string> to_disallow)
 {
@@ -71,6 +78,41 @@ static void tefnutSandBoxSeccomp(vector<string> to_disallow)
     }
 
     seccomp_release(seccomp_ctx);
+}
+
+
+vector<string> readConfigFile(string &fpath) {
+    string curr_line;
+    vector<string> config_read;
+    ifstream f_configfile(fpath);
+
+
+    if (f_configfile.is_open()) {
+        while (getline(f_configfile, curr_line)) {
+            config_read.push_back(curr_line);
+        }
+    }
+
+    return config_read;
+} 
+
+size_t randomNum(size_t min, size_t max) {
+    std::random_device dev;
+    std::mt19937 rng(dev());
+    std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max); 
+
+    return dist6(rng);
+}
+
+string randomString(size_t size) {
+    string ret;
+    for (int i = 0; i < size; i++) {
+        size_t new_rand = randomNum(0, ALNUM);
+        char new_char = cUPPERCASE[new_rand];
+        ret.insert(0, 1, new_char);
+    }
+
+    return ret;
 }
 
 
@@ -171,8 +213,7 @@ string execCommand(string cmd) {
 
     FILE *pipe = popen(cmd.c_str(), "r");
     if (!pipe) {
-        cout << "\033Error :\033 Problem opening pipe for Python" << endl;
-        exit(1);
+        ERR_EXIT("Problem opening pipe for Python");
     }
 
     while (fgets(buff, sizeof(buff), pipe) != NULL) {
@@ -183,3 +224,16 @@ string execCommand(string cmd) {
     return out;
 }
 
+netAddr_t getAddrType(string addr) {
+    smatch re_match_ipv4, re_match_ipv6;
+    regex_match(addr, re_match_ipv4, c_IPV4_REGEX);
+    regex_match(addr, re_match_ipv6, c_IPV6_REGEX);
+
+    if (re_match_ipv4.size() > 0) {
+        return AddrTypeIPV4;
+    } else if (re_match_ipv6.size() > 0) {
+        return AddrTypeIPV6;
+    } else {
+        ERR_EXIT("Wrong address given, must be IPV4 or IPV6");
+    }
+}
