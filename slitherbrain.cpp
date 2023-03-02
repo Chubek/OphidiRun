@@ -451,15 +451,20 @@ string removeScriptFile(string fpath)
 int _main(int argc, char **argv)
 {
     vector<string> unallowed_syscalls;
+    string pythonpath, scriptpath;
 
     for (int i = 3; i < argc; i++)
     {
         unallowed_syscalls.push_back(string(argv[i]));
     }
 
+    pythonpath = string(argv[1]);
+    scriptpath = string(argv[2]);
+
     sandboxProcess(unallowed_syscalls);
-    string command = string(argv[1]) + " " + string(argv[2]);
+    string command = pythonpath + " " + scriptpath;
     string exec_result = execCommand(command);
+    removeScriptFile(scriptpath);
 
     cout << exec_result << endl;
 }
