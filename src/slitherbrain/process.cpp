@@ -1,4 +1,4 @@
-#include "includes/slitherbrain.hpp"
+#include "../includes/slitherbrain.hpp"
 
 namespace slitherbrain
 {
@@ -36,7 +36,7 @@ namespace slitherbrain
             return out;
         }
 
-        static void sandboxProcess(vector<string> to_disallow)
+        void sandboxProcess(vector<string> to_disallow)
         {
             scmp_filter_ctx seccomp_ctx = seccomp_init(SCMP_ACT_ALLOW);
             if (!seccomp_ctx)

@@ -83,14 +83,14 @@ namespace slitherbrain
 
     namespace args
     {
-        vector<string> parseArgsAndRun(int argc, char **argv, volatile sig_atomic_t &sigc);
+        void parseArgsAndRun(int argc, char **argv, volatile sig_atomic_t &sigc);
         string hasFlagIfSoRemoveMarker(char *arg, const char *flag);
     }
     namespace process
     {
         string runSlitherRunProcess(string slitherrun_path, string python_path, string disallowed_calls, string code);
         string execCommand(string cmd);
-        static void sandboxProcess(vector<string> to_disallow);
+        void sandboxProcess(vector<string> to_disallow);
     }
     namespace net
     {
@@ -160,7 +160,7 @@ namespace slitherbrain
         string pathJoinTmp(string path);
         void writeStringToFile(string fpath, string contents);
         string processCodeAndSaveTemp(string code);
-        string removeScriptFile(string fpath);
+        void removeScriptFile(string fpath);
 
     }
     namespace pox

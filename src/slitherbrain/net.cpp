@@ -1,4 +1,4 @@
-#include "includes/slitherbrain.hpp"
+#include "../includes/slitherbrain.hpp"
 
 namespace slitherbrain
 {
@@ -54,6 +54,26 @@ namespace slitherbrain
             }
 
             return listener;
+        }
+
+        netAddr_t getAddrType(string addr)
+        {
+            smatch re_match_ipv4, re_match_ipv6;
+            regex_match(addr, re_match_ipv4, slitherbrain::consts::c_IPV4_REGEX);
+            regex_match(addr, re_match_ipv6, slitherbrain::consts::c_IPV6_REGEX);
+
+            if (re_match_ipv4.size() > 0)
+            {
+                return AddrTypeIPV4;
+            }
+            else if (re_match_ipv6.size() > 0)
+            {
+                return AddrTypeIPV6;
+            }
+            else
+            {
+                ERR_EXIT("Wrong address given, must be IPV4 or IPV6");
+            }
         }
 
         int accepetNewConnection(sockAddrIn_t &socket_addr, int listener)

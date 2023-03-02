@@ -1,10 +1,10 @@
-#include "includes/slitherbrain.hpp"
+#include "../includes/slitherbrain.hpp"
 
 namespace slitherbrain
 {
     namespace args
     {
-        vector<string> parseArgsAndRun(int argc, char **argv, volatile sig_atomic_t &sigc)
+        void parseArgsAndRun(int argc, char **argv, volatile sig_atomic_t &sigc)
         {
             string python_path, slitherrun_path, config_path, ip, port_str, disallowed_calls;
             uint16_t port_int;

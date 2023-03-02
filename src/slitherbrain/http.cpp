@@ -1,4 +1,4 @@
-#include "includes/slitherbrain.hpp"
+#include "../includes/slitherbrain.hpp"
 
 namespace slitherbrain
 {

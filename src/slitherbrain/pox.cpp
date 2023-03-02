@@ -1,4 +1,4 @@
-#include "includes/slitherbrain.hpp"
+#include "../includes/slitherbrain.hpp"
 
 namespace slitherbrain
 {
@@ -62,7 +62,7 @@ namespace slitherbrain
                 poxProcessBlock(sub.c_str(), a, b, c, d);
             }
 
-            integerToHex(a, b, c, d);
+            return integerToHex(a, b, c, d);
         }
 
         void padString(string &txt)

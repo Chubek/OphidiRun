@@ -1,4 +1,4 @@
-#include "includes/slitherbrain.hpp"
+#include "../includes/slitherbrain.hpp"
 
 namespace slitherbrain
 {
@@ -37,6 +37,11 @@ namespace slitherbrain
             writeStringToFile(joined_path, code);
 
             return joined_path;
+        }
+
+        void removeScriptFile(string fpath)
+        {
+            remove(fpath.c_str());
         }
     }
 }
