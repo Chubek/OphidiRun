@@ -21,6 +21,7 @@
 #include <regex>
 #include <seccomp.h>
 #include <thread>
+#include <signal.h>
 
 using namespace std;
 
@@ -53,6 +54,7 @@ using namespace std;
 #define DATE_HN "Date: "
 #define CONT_LEN_HN "Content-Length: "
 #define CONT_TYPE_HN "Content-Type: "
+#define BODY_ERR "Error Ocurred"
 
 #define ERR_EXIT(message)                              \
                                                        \
@@ -65,6 +67,8 @@ typedef struct addrinfo *pAddrInfo_t;
 typedef struct sockaddr_in sockAddrIn_t;
 typedef struct sockaddr *pSockAddr_t;
 typedef struct tm *pTime_t;
+
+volatile sig_atomic_t sigc;
 
 const regex c_IPV4_REGEX(RE_IPV4);
 const regex c_IPV6_REGEX(RE_IPV6);
@@ -89,6 +93,11 @@ typedef enum HttpParseError
     ParseReqLineOk,
     ParseBadCode,
 } parseActonStat_t;
+
+void sighandle(int signum)
+{
+    sigc = 1;
+}
 
 string composeResponseLine(parseActonStat_t action_stat)
 {
@@ -126,7 +135,7 @@ string composeResponseLine(parseActonStat_t action_stat)
         break;
     case ParseNoBody:
         makeResp_f(STATUS_BR, resp_line);
-        break;   
+        break;
     case ParseReqLineOk:
         makeResp_f(STATUS_OK, resp_line);
         break;
@@ -218,23 +227,6 @@ static void sandboxProcess(vector<string> to_disallow)
     seccomp_release(seccomp_ctx);
 }
 
-vector<string> readConfigFile(string &fpath)
-{
-    string curr_line;
-    vector<string> config_read;
-    ifstream f_configfile(fpath);
-
-    if (f_configfile.is_open())
-    {
-        while (getline(f_configfile, curr_line))
-        {
-            config_read.push_back(curr_line);
-        }
-    }
-
-    return config_read;
-}
-
 size_t randomNum(size_t min, size_t max)
 {
     std::random_device dev;
@@ -257,21 +249,23 @@ string randomString(size_t size)
     return ret;
 }
 
-vector<string> readConfigFile(string &fpath)
+string readConfigFile(string fpath)
 {
     string curr_line;
     vector<string> config_read;
     ifstream f_configfile(fpath);
+    stringstream strm;
 
     if (f_configfile.is_open())
     {
         while (getline(f_configfile, curr_line))
         {
-            config_read.push_back(curr_line);
+            strm << curr_line;
+            strm << " ";
         }
     }
 
-    return config_read;
+    return strm.str();
 }
 
 bool charAtRightIs(string s, char c)
@@ -328,9 +322,11 @@ vector<string> splitStr(string str, const string delimiter)
     return ret;
 }
 
-string joinStrVector(vector<string> strs, const string delemiter) {
+string joinStrVector(vector<string> strs, const string delemiter)
+{
     stringstream strm;
-    for (int i = 0; i < strs.size(); i++) {
+    for (int i = 0; i < strs.size(); i++)
+    {
         strm << strs[i];
         strm << delemiter;
     }
@@ -549,14 +545,45 @@ string readClientConnection(int clientsock)
     return readfully;
 }
 
-void serveHttpForever(string ip, int port, string slitherrun_path, string python_path, string disallowed_calls) {
+void readSocketExecuteAndSendBack(int clientsock, string slitherrun_path, string python_path, string disallowed_calls)
+{
+    string request = readClientConnection(clientsock);
+    string code;
+    auto action_stat = parseRequest(request, code);
+
+    string resp_body;
+    if (action_stat == ParseReqLineOk)
+    {
+        resp_body = runSlitherRunProcess(slitherrun_path, python_path, disallowed_calls, code);
+    }
+    else
+    {
+        resp_body = BODY_ERR;
+    }
+
+    auto response = composeResponse(action_stat, resp_body);
+    send(clientsock, response.c_str(), response.length() + 1, 0);
+
+    close(clientsock);
+}
+
+void serveHttpForever(string ip, int port, string slitherrun_path, string python_path, string disallowed_calls)
+{
     auto addr_type = getAddrType(ip);
     auto listener_addr = newSocketAddress(ip, port, addr_type);
     auto listener = listenToSocket(listener_addr, addr_type);
 
-    do {
-        
+    while (!sigc)
+    {
+        sockAddrIn_t client_addr;
+        int clientsocket = accepetNewConnection(client_addr, listener);
+        if (!clientsocket)
+            continue;
+        thread([clientsocket, slitherrun_path, python_path, disallowed_calls]()
+               { readSocketExecuteAndSendBack(clientsocket, slitherrun_path, python_path, disallowed_calls); });
     }
+
+    close(listener);
 }
 
 parseActonStat_t validateReqestLine(string requestLine)
@@ -621,7 +648,6 @@ bool checkCodeIntegrity(string code, string checksum)
 
     return hash == checksum;
 }
-
 
 #define POX_PRIMNUM 32
 #define POX_BLOCKNUM 64
@@ -727,11 +753,61 @@ string integerToHex(uint16_t a, uint16_t b, uint16_t c, uint16_t d)
     return strm.str();
 }
 
-string runSlitherRunProcess(string slitherrun_path, string python_path, string disallowed_calls, string code) {
+string runSlitherRunProcess(string slitherrun_path, string python_path, string disallowed_calls, string code)
+{
     string tmp_filep = processCodeAndSaveTemp(code);
     vector<string> command_vec = {slitherrun_path, python_path, tmp_filep, disallowed_calls};
     string command = joinStrVector(command_vec, " ");
 
     string result = execCommand(command);
     return result;
+}
+
+string hasFlagIfSoRemoveMarker(char *arg, const char *flag)
+{
+    string arg_str = string(arg);
+    if (arg_str.rfind(flag))
+    {
+        arg_str.erase(0, string(flag).length());
+        return arg_str;
+    }
+
+    return "";
+}
+
+vector<string> parseArgsAndRun(int argc, char **argv)
+{
+    string python_path, slitherrun_path, config_path, ip, port_str, disallowed_calls;
+    uint16_t port_int;
+
+    for (int i = 0; i < argc; i++)
+    {
+        python_path = hasFlagIfSoRemoveMarker(argv[i], "--pypath=");
+        slitherrun_path = hasFlagIfSoRemoveMarker(argv[i], "--runnerpath=");
+        config_path = hasFlagIfSoRemoveMarker(argv[i], "--confpath=");
+        ip = hasFlagIfSoRemoveMarker(argv[i], "--ip=");
+        port_str = hasFlagIfSoRemoveMarker(argv[i], "--port=");
+    }
+
+    if (python_path == "")
+        ERR_EXIT("Must pass --pypath=<python path>");
+    else if (slitherrun_path == "")
+        ERR_EXIT("Must pass --runnerpath=<SlitherRun path>");
+    else if (config_path == "")
+        ERR_EXIT("Must pass --confpath=<Config path>");
+    else if (ip == "")
+        ERR_EXIT("Must pass --ip=<Host IP>");
+    else if (port_str == "")
+        ERR_EXIT("Must pass --port<Host port>");
+
+    port_int = stoi(port_str);
+    disallowed_calls = readConfigFile(config_path);
+
+    serveHttpForever(ip, port_int, slitherrun_path, python_path, disallowed_calls);
+}
+
+int main(int argc, char **argv)
+{
+    signal(SIGINT, sighandle);
+    parseArgsAndRun(argc, argv);
 }
