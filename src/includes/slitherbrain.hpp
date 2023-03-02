@@ -23,7 +23,6 @@
 #include <thread>
 #include <signal.h>
 
-
 #define NEWLINE "\n"
 #define QUOTE '"'
 #define ESCAPE '\\'
@@ -63,7 +62,6 @@
         exit(1);                                       \
     } while (0)
 
-
 #define POX_PRIMNUM 32
 #define POX_BLOCKNUM 64
 #define POX_PORTNUM 16
@@ -77,20 +75,25 @@
 #define POX_THETA(a, b, c) c = (a * (ROT16RIGHT4(b + a))) >> 2
 #define POX_OMEGA(a, b, c, d) a = ((a >> 2) * (b >> 4) * (c >> 6)) | ROT16LEFT4(d)
 
+void sighandle(int signum);
 
-namespace slitherbrain {
+namespace slitherbrain
+{
     using namespace std;
 
-    namespace args {
-        vector<string> parseArgsAndRun(int argc, char **argv);
+    namespace args
+    {
+        vector<string> parseArgsAndRun(int argc, char **argv, volatile sig_atomic_t &sigc);
         string hasFlagIfSoRemoveMarker(char *arg, const char *flag);
     }
-    namespace process {
+    namespace process
+    {
         string runSlitherRunProcess(string slitherrun_path, string python_path, string disallowed_calls, string code);
         string execCommand(string cmd);
         static void sandboxProcess(vector<string> to_disallow);
     }
-    namespace net {
+    namespace net
+    {
         typedef enum NetworkAddressType
         {
             AddrTypeIPV4,
@@ -99,18 +102,17 @@ namespace slitherbrain {
 
         typedef struct sockaddr_in sockAddrIn_t;
         typedef struct sockaddr *pSockAddr_t;
-        
+
         sockAddrIn_t newSocketAddress(string ip, uint16_t port, netAddr_t addr_type);
         netAddr_t getAddrType(string addr);
         int listenToSocket(sockAddrIn_t &socket_addr, netAddr_t addr_type);
         int accepetNewConnection(sockAddrIn_t &socket_addr, int listener);
         string readClientConnection(int clientsock);
         void readSocketExecuteAndSendBack(int clientsock, string slitherrun_path, string python_path, string disallowed_calls);
-        void serveHttpForever(string ip, int port, string slitherrun_path, string python_path, string disallowed_calls);
-        
-        
+        void serveHttpForever(string ip, int port, string slitherrun_path, string python_path, string disallowed_calls, volatile sig_atomic_t &sigc);
     }
-    namespace http {
+    namespace http
+    {
         typedef enum HttpParseError
         {
             ParseEmptyRequest,
@@ -122,7 +124,6 @@ namespace slitherbrain {
             ParseReqLineOk,
             ParseBadCode,
         } parseActonStat_t;
-        typedef struct tm *pTime_t;
 
         string composeResponseLine(parseActonStat_t action_stat);
         string composeResponseHeaders(size_t clen);
@@ -132,38 +133,61 @@ namespace slitherbrain {
         string getCheckSum(vector<string> headers);
         bool checkCodeIntegrity(string code, string checksum);
 
-   
     }
-    namespace utils {
+    namespace utils
+    {
+        typedef struct tm *pTime_t;
+
         string getCurrentUtcFormattedTime();
         size_t randomNum(size_t min, size_t max);
         string randomString(size_t size);
         string readConfigFile(string fpath);
 
     }
-    namespace strtools {
+    namespace strtools
+    {
         bool charAtRightIs(string s, char c);
-        void trimCharRight(string &str, char c);        
+        void trimCharRight(string &str, char c);
         void trimCharLeft(string &str, char c);
         void trimChar(string &str, vector<char> chars);
         vector<string> splitStr(string str, const string delimiter);
         string joinStrVector(vector<string> strs, const string delemiter);
         void replaceChar(string &str, const char c, char r);
-        void escapeSequence(string &str);   
+        void escapeSequence(string &str);
     }
-    namespace filetools {
+    namespace filetools
+    {
         string pathJoinTmp(string path);
         void writeStringToFile(string fpath, string contents);
         string processCodeAndSaveTemp(string code);
         string removeScriptFile(string fpath);
-        
+
     }
-    namespace pox {
+    namespace pox
+    {
         void poxRound(uint16_t &a, uint16_t &b, uint16_t &c, uint16_t &d);
         void poxProcessBlock(const char block[POX_BLOCKNUM], uint16_t &a, uint16_t &b, uint16_t &c, uint16_t &d);
+        string poxHash(string txt);
         void padString(string &txt);
         string integerToHex(uint16_t a, uint16_t b, uint16_t c, uint16_t d);
     }
+    namespace consts
+    {
+        const regex c_IPV4_REGEX(RE_IPV4);
+        const regex c_IPV6_REGEX(RE_IPV6);
+
+        const vector<char> cTO_TRIM = {'\0', ' ', '\r', '\n', ';', '\t'};
+        const vector<char> cUPPERCASE = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'M', 'N', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'};
+        
+        const uint16_t cPOX_PRIMES[POX_PRIMNUM] = {
+            0xe537, 0xbd71, 0x9ef9, 0xbbcf, 0xf8dd, 0xceb7, 0xbaa1, 0x8f9f,
+            0xb0ed, 0xfc4f, 0x9787, 0xf01f, 0xe1d1, 0xbcb9, 0xd565, 0xc011,
+            0xc1e1, 0xb58d, 0xd4e1, 0x9ea1, 0xee49, 0x97cd, 0xdac9, 0xe257,
+            0xa32b, 0xafbb, 0xa5e3, 0xfc43, 0xbf71, 0xe401, 0x8ebd, 0xd549};
+
+        const uint16_t cPOXPRIME_INIT_A = 0x9f91;
+        const uint16_t cPOXPRIME_INIT_B = 0xdb3b;
+        const uint16_t cPOXPRIME_INIT_C = 0xc091;
+        const uint16_t cPOXPRIME_INIT_D = 0xac8b;   
+    }
 }
-
-
