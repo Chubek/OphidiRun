@@ -66,6 +66,7 @@
 #define POX_BLOCKNUM 64
 #define POX_PORTNUM 16
 #define POX_FACTNUM 4
+#define POX_ROUNDNUM 8
 
 #define ROT16LEFT4(num) ((num << 4) | (num >> (16 - 4)))
 #define ROT16RIGHT4(num) ((num >> 4) | (num << (16 - 4)))
