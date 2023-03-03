@@ -25,10 +25,10 @@ namespace slitherbrain
                 tmp_d = tmp_a >> 2;
             }
 
-            a = tmp_a / 2;
-            b = tmp_b / 4;
-            c = tmp_c / 6;
-            d = tmp_d / 8;
+            a += tmp_a / 2;
+            b += tmp_b / 4;
+            c += tmp_c / 6;
+            d += tmp_d / 8;
         }
 
         void poxProcessBlock(const char block[POX_BLOCKNUM], uint16_t &a, uint16_t &b, uint16_t &c, uint16_t &d)
