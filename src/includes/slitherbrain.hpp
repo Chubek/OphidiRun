@@ -72,7 +72,7 @@
 #define ROT16RIGHT4(num) ((num >> 4) | (num << (16 - 4)))
 
 #define POX_ALPHA(a) a |= ROT16LEFT4(a) | ROT16RIGHT4(a * 2)
-#define POX_DELTA(a, b) b = ROT16LEFT4(b) | 0xffcd
+#define POX_DELTA(a, b) b = (ROT16LEFT4(b) ^ a)| 0xffcd
 #define POX_THETA(a, b, c) c = (a * (ROT16RIGHT4(b + a))) >> 2
 #define POX_OMEGA(a, b, c, d) d = ((a >> 2) * (b >> 4) * (c >> 6)) | ROT16LEFT4(d)
 
