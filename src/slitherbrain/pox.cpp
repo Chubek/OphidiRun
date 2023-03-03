@@ -35,7 +35,7 @@ namespace slitherbrain
         {
             for (int i = 0; i < POX_BLOCKNUM; i += POX_PORTNUM)
             {
-                for (int j = i; j < POX_PORTNUM; j += POX_FACTNUM)
+                for (int j = i; j < i + POX_PORTNUM; j += POX_FACTNUM)
                 {
                     a |= block[j];
                     b ^= block[j + 1];
