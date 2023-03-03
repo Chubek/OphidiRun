@@ -37,10 +37,10 @@ namespace slitherbrain
             {
                 for (int j = i; j < i + POX_PORTNUM; j += POX_FACTNUM)
                 {
-                    a |= block[j];
-                    b ^= block[j + 1];
-                    c &= block[j + 2] + 1;
-                    d = ~block[j + 3];
+                    a |= block[i + j];
+                    b ^= block[i + j + 1];
+                    c &= block[i + j + 2] + 1;
+                    d = ~block[i + j + 3];
 
                     for (int k = 0; k < POX_ROUNDNUM; k++)
                         poxRound(a, b, c, d);
